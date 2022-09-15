@@ -154,32 +154,22 @@ This message shows that your installation appears to be working correctly.
 ## Generate SSH keys
 * ``ssh-keygen -t ed25519 -C bl-svr``
 * ``cat ~/.ssh/id_ed25519.pub`` >> Github keys
-* ``wget https://raw.githubusercontent.com/blurer/myBS/main/authorized_keys -P ~/.ssh/
+* ``wget https://raw.githubusercontent.com/blurer/myBS/main/authorized_keys -P ~/.ssh/``
 * ``mkdir ~/dev/ ; cd ~/dev ; git clone git@github.com:blurer/Homelab-Setup.git``
 * ``cd ~/dev/Homelab-Setup ; ./main.py``
 
-```
-$ ./main.py 
-BL Homelab Script
-Answer Y/N to the following
-################################################################
-Need NginxProxyManager: y
-Need PiHole DNS: y
-Need UptimeKuma: y
-Need Portainer: y
-Need Homepage: n
-Need IPerf: y
-Need Wger: n
-Need CodeWeb: n
-Need Startpage: n
-Need Wiki: n
-Need Plex: y
-Need Mealie: y
-Need Bitwarden: y
-Need Smokeping: y
-Need Budget: y
-Need SpeedTest: y
-################################################################
-```
-## Please wait for a while.
+## Services to be installed:
+* Plex
+* ExpressVPN
+* Torrent (connected to ExpressVPN)
+* Portainer
+* Nginx Proxy Manager
+* Uptime Kuma
+* Smokeping
+* Mealie 
+* Grocy
+* Budget
+* Speedtest Tracker
+* OpenSpeedTest
+* IPerf
 
