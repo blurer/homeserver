@@ -6,109 +6,105 @@ Home server setup
 * Xeon D1518
 * 2x SK hynix 32GB DDR4 2666Mhz 
 * 1x Samsung 980 nVME (rootfs)
-* 2x Western Digital 6TB WD Red Plus CMR
+* 2x Western Digital 10TB WD Red Plus CMR
+
 
 ## Installation
-* Download and burn arch iso to usb
-* vim /etc/pacman.conf :
-```
-ParallelDownloads = 25
-```
-* run ``archinstall``:
-```
-language: Engilsh
-keyboard: us
-mirror region: United States
-harddrives: nvme1n1
-bootloader: systemd-bootctl
-hostname: bl-svr
-root password: none
-superuser account: bl
-specify profile: minimum
-select audio: none
-select kernel: linux-lts
-additional packages to install: 
-network: copy settings from iso
-select timezone: America/New_York
-automatic time sync: yes
-```
+* Download and burn proxmox iso to usb
+* Boot to usb disk, install proxmox.
 
-Chroot: yes
-```
-systemctl enable sshd
-systemctl start sshd
-```
-Reboot
+# Info
 
-## Post Install
-* SSH to the host as user
-* vim /etc/pacman.conf :
-```
-Color
-ParallelDownloads = 25
-```
-* ``sudo pacman -Syu`` just to make sure up to date
+| Host | CT | Name | OS | IP/cidr |
+|---|---|---|---|---|
+| VM1^ | n/a | VM1 | Proxmox | 192.168.6.0/22|
+| VM1 | 101 | dns1 | Ubu 20.04 | 192.168.6.10/22|
+| VM1 | 102 | docker1| Ubu 20.04 | 192.168.6.11/22|
+| VM1 | 103 | plex | Ubu 20.04 | 192.168.6.12/22|
+| VM1 | 104 | bastion | Ubu 20.04 | 192.168.6.13/22|
+| VM2^ | n/a | VM2 | Proxmox | 192.168.5.0/22 | 
 
-### Setup raid1 storage
-* Install and start mdadm, create raid1 array
-```
-sudo pacman -S mdadm
-sudo systemctl start mdadm
-sudo systemctl enable mdadm``
-sudo mdadm --create --verbose /dev/md0 --level=mirror --raid-devices=2 /dev/sda1 /dev/sdb1
-```
-* Create file partition
-```
-sudo fdisk /dev/md0
-n <enter>
-<enter>
-<enter>
-{exits fdisk}
-sudo mkfs.ext4 /dev/md0
-```
-* Mount the newly created array, update fstab
-```
-sudo mkdir /mnt/md0
-sudo mount /dev/md0 /mnt/md0
-sudo blkid | grep /dev/md0
-{copy that uuid}
-sudo vim /etc/fstab
-UUID={paste}}       /mnt/md0               ext4           defaults,noatime        0       1
-{save}
-```
+*^ Cluster member*
 
-# WATCH THE RAID ARRAY REBUILD
-``mdadm --detail /dev/md0``
-# WAIT FOR IT TO COMPLETE BEFORE CONTINUE
+# VM1 Post Install
+* SSH to host
+* Fix repo bs: ``bash -c "$(wget -qLO - https://github.com/tteck/Proxmox/raw/main/misc/post-install.sh)"`` (reboot after)
+* Darkmode: ``bash <(curl -s https://raw.githubusercontent.com/Weilbyte/PVEDiscordDark/master/PVEDiscordDark.sh ) install``
+* Setup zfs pool for 2x10TB HDDs
+* Download Ubuntu 20.04 Server LXC
+* Start building VMs
 
-# Reboot
+# DNS
+```
+ct: 100
+hostname: dns1
+vcpu: 1
+mem: 512m
+storage 1: 8g (nvme)
+IP: 192.168.6.10/22
+```
+## Setup
+```
+apt update -y
+apt upgrade -y
+apt install vim git curl rsync htop nload -y
+curl -sSL https://install.pi-hole.net | bash
+```
+*Reboot CT*
+* Test DNS is working.
+* Add whitelists: https://raw.githubusercontent.com/blurer/Homelab-Setup/main/pihole/whitelist.txt
+* Add blacklists: https://raw.githubusercontent.com/blurer/Homelab-Setup/main/pihole/blocks.txt
+* Update the lists: ``docker exec -it pihole /bin/bash`` -> ``pihole -g`` -> ``exit``
+* Setup router to use ``192.168.6.10`` as DNS resolver
+* Reboot
 
-## Validate storage
-* Login via ssh
-* Check to make sure the storage mounted - should see something like this
+# Docker
 ```
-$ df -h
-Filesystem      Size  Used Avail Use% Mounted on
-/dev/md2        126G   22G   98G  19% /
-/dev/md3         28T   15T   11T  58% /home
-/dev/md1        989M   86M  853M  10% /boot
+ct: 101
+hostname: docker1
+mem: 16g
+storage 1: 128g (nvme)
+storage 2: 512g (hdd)
+IP: 192.168.6.11/22
 ```
+## Setup
+```
+apt update -y
+apt upgrade -y
+apt install vim git curl rsync htop nload -y
+curl -fsSL https://get.docker.com -o get-docker.sh
+bash get-docker.sh
+systemctl enable docker
+apt install docker-compose -y
+```
+*Reboot ct*
 
-# Install services
-* Install the essentials:
-```
-sudo pacman -S vim git curl htop ansible fail2ban unzip docker docker-compose ffmpeg jq python-pip python-setuptools nload neofetch wireguard-tools rsync rclone
 
-sudo systmctl start docker
-sudo systemctl enable docker
-sudo usermod -aG docker bl
+# Plex VM
 ```
-
-## Build folder structure
+ct: 102
+hostname: plex
+vcpu: 2
+mem: 8g
+storage 1: 32g (nvme)
+storage 2: 8T (hdd)
+IP: 192.168.6.12/22
 ```
-mkdir /mnt/md0/backup
-mkdir /mnt/md0/docker/
-mkdir /mnt/md0/dev/
+## Setup
+```
+apt update -y
+apt upgrade -y
+apt install vim git curl rsync htop nload python3-pip python3-setuptools gnupg -y
+pip3 install bpytop
+curl https://downloads.plex.tv/plex-keys/PlexSign.key | sudo apt-key add -
+echo deb https://downloads.plex.tv/repo/deb public main | sudo tee /etc/apt/sources.list.d/plexmediaserver.list
+sudo apt update -y
+sudo apt install plexmediaserver -y
+sudo systemctl enable plexmediaserver
+sudo systemctl start plexmediaserver
+```
+*Reboot*
+```
 mkdir /mnt/md0/media/
 mkdir /mnt/md0/media/tv/
 mkdir /mnt/md0/media/tv/2160p/
@@ -136,40 +132,4 @@ mkdir /mnt/md0/media/foreign/japanese/movies/
 mkdir /mnt/md0/seed/
 mkdir /mnt/md0/tmp/
 ```
-
-## Reboot again
-* Login via ssh
-* Check to make sure docker is running and permissions work: 
-```
-$ docker run hello-world
-Unable to find image 'hello-world:latest' locally
-latest: Pulling from library/hello-world
-2db29710123e: Pull complete 
-Status: Downloaded newer image for hello-world:latest
-
-Hello from Docker!
-This message shows that your installation appears to be working correctly.
-```
-
-## Generate SSH keys
-* ``ssh-keygen -t ed25519 -C bl-svr``
-* ``cat ~/.ssh/id_ed25519.pub`` >> Github keys
-* ``wget https://raw.githubusercontent.com/blurer/myBS/main/authorized_keys -P ~/.ssh/``
-* ``mkdir ~/dev/ ; cd ~/dev ; git clone git@github.com:blurer/Homelab-Setup.git``
-* ``cd ~/dev/Homelab-Setup ; ./main.py``
-
-## Services to be installed:
-* Plex
-* ExpressVPN
-* Torrent (connected to ExpressVPN)
-* Portainer
-* Nginx Proxy Manager
-* Uptime Kuma
-* Smokeping
-* Mealie 
-* Grocy
-* Budget
-* Speedtest Tracker
-* OpenSpeedTest
-* IPerf
 
