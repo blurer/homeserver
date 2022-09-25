@@ -65,6 +65,17 @@ sda           8:0    0   9.1T  0 disk
 sdb           8:16   0   9.1T  0 disk
 └─md0         9:0    0   9.1T  0 raid1
 ```
+* Change label to gpt (reuqired for >2tb partition)
+```
+sudo pacman -S parted
+sudo parted /dev/md0
+(parted) mklabel gpt
+Warning: The existing disk label on /dev/md0 will be destroyed and all data on this disk will be
+lost. Do you want to continue?
+Yes/No? y
+(parted) quit
+```
+
 * Create file partition
 ```
 sudo fdisk /dev/md0
