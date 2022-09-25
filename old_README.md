@@ -82,6 +82,7 @@ sudo fdisk /dev/md0
 n <enter>
 <enter>
 <enter>
+Created a new partition 1 of type 'Linux filesystem' and of size 9.1 TiB.
 {exits fdisk}
 sudo mkfs.ext4 /dev/md0
 ```
